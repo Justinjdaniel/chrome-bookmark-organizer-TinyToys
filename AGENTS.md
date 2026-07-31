@@ -14,4 +14,4 @@ Before making any code edits or planning changes:
 
 ## 3. Security & BYOK Rules
 * Never log, hardcode, or persist user API keys on the server or in logs.
-* Gemini API keys must reside solely in browser local storage (`localStorage`) or ephemeral memory.
+* Gemini API keys must reside solely in browser local storage (`sessionStorage`) or ephemeral memory.
