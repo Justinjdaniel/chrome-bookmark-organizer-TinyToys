@@ -15,3 +15,21 @@ Before making any code edits or planning changes:
 ## 3. Security & BYOK Rules
 * Never log, hardcode, or persist user API keys on the server or in logs.
 * Gemini API keys must reside solely in browser local storage (`sessionStorage`) or ephemeral memory.
+
+## 4. Task Completion & Pull Request Directives
+
+### 1. Auto-Export Protocol
+* Upon successfully completing all plan steps, linting, and build checks, automatically push the changes to a feature branch and open a Pull Request targeting `main`.
+* Include a clean title and markdown summary of all modified/added files in the PR description.
+
+### 2. Custom Command Triggers
+When the user sends any of the following keyword commands in the chat, immediately execute the PR submission workflow without requesting further confirmation:
+* `ship it`
+* `create pr`
+* `export pr`
+* `make pull request`
+
+### 3. Submission Verification
+Before finalizing the PR, ensure:
+1. `npm run build` and `npm run lint` pass without errors.
+2. The working branch is up-to-date with `origin/main`.
