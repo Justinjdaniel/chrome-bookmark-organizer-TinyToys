@@ -56,7 +56,8 @@ async function processBatchWithRetry(
   categories: string[],
   customInstructions: string,
   attempt: number = 1,
-  maxAttempts: number = 3
+  maxAttempts: number = 3,
+  signal?: AbortSignal
 ): Promise<CategorizedItem[]> {
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -101,31 +102,76 @@ Custom organizational instructions: ${customInstructions || "None provided"}`
     
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
-    const parsed: CategorizedItem[] = JSON.parse(responseText);
-    
+    const parsed = JSON.parse(responseText);
+
+    // Validate that the parsed result is an array of valid objects
+    if (!Array.isArray(parsed)) {
+      throw new Error('Invalid response: expected an array');
+    }
+
+    // Create a set of submitted URLs for validation
+    const submittedUrls = new Set(items.map(item => item.url));
+
     // Validate that categories returned are actually in the requested list (case-insensitive correction can be done)
     const normalizedCategories = categories.map(c => c.toLowerCase().trim());
-    const validated = parsed.map(item => {
+    const validated: CategorizedItem[] = [];
+
+    for (const item of parsed) {
+      // Validate structure
+      if (
+        typeof item !== 'object' ||
+        item === null ||
+        typeof item.url !== 'string' ||
+        typeof item.category !== 'string'
+      ) {
+        continue; // Skip invalid entries
+      }
+
+      // Only include items whose URL was actually submitted
+      if (!submittedUrls.has(item.url)) {
+        continue;
+      }
+
       const matchIndex = normalizedCategories.indexOf(item.category.toLowerCase().trim());
       if (matchIndex !== -1) {
-        return {
+        validated.push({
           url: item.url,
           category: categories[matchIndex], // keep original case
-        };
+        });
+      } else {
+        validated.push({
+          url: item.url,
+          category: 'Uncategorized',
+        });
       }
-      return {
-        url: item.url,
-        category: 'Uncategorized',
-      };
-    });
+    }
 
     return validated;
   } catch (error) {
+    if (signal?.aborted) {
+      throw new Error('Processing aborted by user');
+    }
+
     if (attempt < maxAttempts) {
       const delayMs = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s
       console.warn(`Attempt ${attempt} failed. Retrying in ${delayMs}ms... Error:`, error);
-      await new Promise(resolve => setTimeout(resolve, delayMs));
-      return processBatchWithRetry(apiKey, modelName, items, categories, customInstructions, attempt + 1, maxAttempts);
+
+      // Abortable wait
+      await new Promise((resolve, reject) => {
+        const timeoutId = setTimeout(resolve, delayMs);
+        if (signal) {
+          signal.addEventListener('abort', () => {
+            clearTimeout(timeoutId);
+            reject(new Error('Processing aborted by user'));
+          });
+        }
+      });
+
+      if (signal?.aborted) {
+        throw new Error('Processing aborted by user');
+      }
+
+      return processBatchWithRetry(apiKey, modelName, items, categories, customInstructions, attempt + 1, maxAttempts, signal);
     }
     throw error;
   }
@@ -164,9 +210,12 @@ export async function processAllBookmarks(
 
   const totalBatches = batches.length;
   let processed = 0;
+  let failedBatchCount = 0;
+  let wasAborted = false;
 
   for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
     if (signal?.aborted) {
+      wasAborted = true;
       onProgress({
         total,
         processed,
@@ -202,7 +251,8 @@ export async function processAllBookmarks(
         categories,
         customInstructions,
         1,
-        3
+        3,
+        signal
       );
 
       for (const item of categorized) {
@@ -215,7 +265,8 @@ export async function processAllBookmarks(
       console.error(`Failed to process batch ${batchIdx + 1}:`, error);
       const errMsg = error instanceof Error ? error.message : String(error);
       onBatchComplete(batchIdx, false, undefined, errMsg);
-      
+      failedBatchCount++;
+
       // We do not stop execution immediately; if failed, we keep the original URLs categorized as 'Uncategorized'
       // and allow the caller to handle manual retry for this batch specifically or skip it.
       for (const item of currentBatchItems) {
@@ -235,8 +286,35 @@ export async function processAllBookmarks(
         statusText: delayStatusText,
         etaSeconds: Math.ceil((remainingBatches - 1) * delayBetweenBatchesMs / 1000),
       });
-      await new Promise(resolve => setTimeout(resolve, delayBetweenBatchesMs));
+
+      // Abortable wait between batches
+      await new Promise<void>((resolve, reject) => {
+        const timeoutId = setTimeout(resolve, delayBetweenBatchesMs);
+        if (signal) {
+          signal.addEventListener('abort', () => {
+            clearTimeout(timeoutId);
+            reject(new Error('Processing aborted by user'));
+          });
+        }
+      }).catch(() => {
+        // Aborted, will be caught by the next signal check
+      });
+
+      if (signal?.aborted) {
+        wasAborted = true;
+        break;
+      }
     }
+  }
+
+  // Determine final status message
+  let finalStatusText: string;
+  if (wasAborted) {
+    finalStatusText = 'Processing aborted by user.';
+  } else if (failedBatchCount > 0) {
+    finalStatusText = `Processing completed with ${failedBatchCount} batch(es) failed.`;
+  } else {
+    finalStatusText = 'All batches processed successfully!';
   }
 
   onProgress({
@@ -244,7 +322,7 @@ export async function processAllBookmarks(
     processed,
     currentBatch: totalBatches,
     totalBatches,
-    statusText: 'All batches processed successfully!',
+    statusText: finalStatusText,
     etaSeconds: 0,
   });
 

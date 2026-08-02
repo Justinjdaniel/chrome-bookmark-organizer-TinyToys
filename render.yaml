@@ -1,7 +1,7 @@
 services:
   - type: web
     name: chrome-bookmark-organizer
-    env: static
+    runtime: static
     buildCommand: pnpm run build
-    publishPath: out
+    staticPublishPath: out
     autoDeploy: true

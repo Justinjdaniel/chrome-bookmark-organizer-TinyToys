@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import {
   Key,
   ShieldCheck,
@@ -34,6 +33,7 @@ import {
 import {
   testGeminiApiKey,
   processAllBookmarks,
+  retrySingleBatch,
   ProcessingProgress,
   BatchItem,
   CategorizedItem
@@ -98,6 +98,7 @@ export default function Home() {
   // Result state
   const [organizedRoot, setOrganizedRoot] = useState<FolderItem | null>(null);
   const [outputHtml, setOutputHtml] = useState<string>('');
+  const [urlCategoryMapping, setUrlCategoryMapping] = useState<Map<string, string>>(new Map());
 
   // Key storage sync
   useEffect(() => {
@@ -151,6 +152,11 @@ export default function Home() {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
     if (file) {
+      const isHtml = file.type === 'text/html' || file.name.toLowerCase().endsWith('.html');
+      if (!isHtml) {
+        alert('Please drop a valid HTML file (.html)');
+        return;
+      }
       processSelectedFile(file);
     }
   };
@@ -172,10 +178,18 @@ export default function Home() {
         const root = parseBookmarksHtml(text);
         setParsedRoot(root);
         const flatList = flattenBookmarks(root);
+        if (!flatList || flatList.length === 0) {
+          alert('No bookmarks found in the file. Please verify it is a valid bookmarks export with actual bookmark entries.');
+          setFlatBookmarks([]);
+          return;
+        }
         setFlatBookmarks(flatList);
       } catch (err) {
         alert('Failed to parse bookmarks.html. Please verify it is a valid Google Chrome Netscape Bookmark export.');
       }
+    };
+    reader.onerror = () => {
+      alert('Failed to read the file. Please try again.');
     };
     reader.readAsText(file);
   };
@@ -220,11 +234,14 @@ export default function Home() {
     const activeModel = customModel.trim() || selectedModel;
     const urlCategoryMap = new Map<string, string>();
 
+    // Validate batch size before processing
+    const validBatchSize = Math.min(50, Math.max(5, batchSize)) || 25;
+
     // Prepare batches for logging
     const total = flatBookmarks.length;
     const initialLogs: typeof batchLogs = [];
-    for (let i = 0, batchIdx = 0; i < total; i += batchSize, batchIdx++) {
-      const chunk = flatBookmarks.slice(i, i + batchSize).map((b, idx) => ({
+    for (let i = 0, batchIdx = 0; i < total; i += validBatchSize, batchIdx++) {
+      const chunk = flatBookmarks.slice(i, i + validBatchSize).map((b, idx) => ({
         id: i + idx,
         url: b.url,
         title: b.title,
@@ -245,7 +262,7 @@ export default function Home() {
         flatBookmarks,
         categories,
         customInstructions,
-        batchSize,
+        validBatchSize,
         delayMs,
         (prog) => setProgress(prog),
         (batchIdx, success, items, errMsg) => {
@@ -270,6 +287,9 @@ export default function Home() {
         controller.signal
       );
 
+      // Store the mapping in state
+      setUrlCategoryMapping(fullMap);
+
       // Re-assemble structure based on selected structuring mode
       const finalRoot = rebuildStructuredBookmarks(flatBookmarks, fullMap, folderMode);
       setOrganizedRoot(finalRoot);
@@ -277,6 +297,14 @@ export default function Home() {
       setOutputHtml(output);
     } catch (err) {
       console.error(err);
+      setProgress({
+        total: flatBookmarks.length,
+        processed: 0,
+        currentBatch: 0,
+        totalBatches: Math.ceil(flatBookmarks.length / batchSize),
+        statusText: `Processing failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        etaSeconds: 0,
+      });
     } finally {
       setIsProcessing(false);
       abortControllerRef.current = null;
@@ -407,39 +435,29 @@ export default function Home() {
     if (!log) return;
 
     const activeModel = customModel.trim() || selectedModel;
-    const updatedLogs = [...batchLogs];
-    
+
     try {
       // Show pending in logs UI
-      updatedLogs[batchIdx] = {
-        ...log,
-        error: 'Retrying manually...',
-      };
-      setBatchLogs(updatedLogs);
+      setBatchLogs((prev) =>
+        prev.map((item) => {
+          if (item.index === batchIdx) {
+            return {
+              ...item,
+              error: 'Retrying manually...',
+            };
+          }
+          return item;
+        })
+      );
 
-      const customInst = customInstructions;
-      const response = await testGeminiApiKey(apiKey, activeModel);
-      if (!response) {
-        throw new Error("Invalid API Key verified during manual retry.");
-      }
-
-      // Make direct retry API call
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({
-        model: activeModel,
-        generationConfig: {
-          responseMimeType: "application/json",
-          temperature: 0.1,
-        },
-        systemInstruction: `You are an advanced bookmark categorizer. Organize the following bookmarks.
-The 'category' value MUST be chosen strictly from this allowed list of categories:
-${categories.map(c => `- ${c}`).join('\n')}
-Custom instructions: ${customInst || "None"}`
-      });
-
-      const prompt = `Categorize the following bookmarks:\n${JSON.stringify(log.rawItems, null, 2)}`;
-      const result = await model.generateContent(prompt);
-      const parsed: CategorizedItem[] = JSON.parse(result.response.text());
+      // Use retrySingleBatch for retry with schema validation and backoff
+      const categorized = await retrySingleBatch(
+        apiKey,
+        activeModel,
+        log.rawItems,
+        categories,
+        customInstructions
+      );
 
       // Update mapping and local logs
       setBatchLogs((prev) =>
@@ -455,7 +473,20 @@ Custom instructions: ${customInst || "None"}`
         })
       );
 
-      alert(`Batch ${batchIdx + 1} sorted successfully! Note: Restart the reorganization to download the unified structure, or process everything again.`);
+      // Merge returned categories into the mapping
+      const updatedMapping = new Map(urlCategoryMapping);
+      for (const item of categorized) {
+        updatedMapping.set(item.url, item.category);
+      }
+      setUrlCategoryMapping(updatedMapping);
+
+      // Rebuild the export/download structure
+      const finalRoot = rebuildStructuredBookmarks(flatBookmarks, updatedMapping, folderMode);
+      setOrganizedRoot(finalRoot);
+      const output = exportToNetscapeHtml(finalRoot);
+      setOutputHtml(output);
+
+      alert(`Batch ${batchIdx + 1} sorted successfully! Export has been updated.`);
     } catch (err) {
       console.error(err);
       alert(`Manual retry failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -499,14 +530,16 @@ Custom instructions: ${customInst || "None"}`
               onClick={toggleTheme}
               className="p-2 rounded-lg border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
               title="Toggle theme"
+              aria-label="Toggle theme"
             >
               {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
             <a
-              href="https://github.com"
+              href="https://github.com/Justinjdaniel/chrome-bookmark-organizer-TinyToys"
               target="_blank"
               rel="noreferrer"
               className="p-2 rounded-lg border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
+              aria-label="View source on GitHub"
             >
               <Github className="w-5 h-5" />
             </a>
@@ -685,6 +718,7 @@ Custom instructions: ${customInst || "None"}`
                       setFlatBookmarks([]);
                     }}
                     className="p-1 rounded-lg text-gray-400 hover:text-red-500 transition-colors"
+                    aria-label="Clear parsed file"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -727,6 +761,7 @@ Custom instructions: ${customInst || "None"}`
                         <button
                           onClick={() => removeCategory(cat)}
                           className="hover:text-red-500 transition-colors"
+                          aria-label={`Remove category ${cat}`}
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -746,6 +781,7 @@ Custom instructions: ${customInst || "None"}`
                     <button
                       onClick={addCategory}
                       className="px-3.5 py-2 bg-purple-600 text-white rounded-xl text-xs font-semibold hover:bg-purple-700 transition"
+                      aria-label="Add category"
                     >
                       <Plus className="w-4 h-4" />
                     </button>
@@ -803,7 +839,20 @@ Custom instructions: ${customInst || "None"}`
                       min="5"
                       max="50"
                       value={batchSize}
-                      onChange={(e) => setBatchSize(Number(e.target.value))}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '') {
+                          setBatchSize(25);
+                          return;
+                        }
+                        const num = Number(val);
+                        if (isNaN(num)) {
+                          setBatchSize(25);
+                          return;
+                        }
+                        const clamped = Math.min(50, Math.max(5, num));
+                        setBatchSize(clamped);
+                      }}
                       className="w-full px-3 py-2 text-xs bg-gray-50 dark:bg-gray-950/40 border border-gray-200 dark:border-gray-800/80 rounded-xl text-gray-900 dark:text-white"
                     />
                   </div>
@@ -817,7 +866,20 @@ Custom instructions: ${customInst || "None"}`
                       max="10000"
                       step="500"
                       value={delayMs}
-                      onChange={(e) => setDelayMs(Number(e.target.value))}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '') {
+                          setDelayMs(2500);
+                          return;
+                        }
+                        const num = Number(val);
+                        if (isNaN(num)) {
+                          setDelayMs(2500);
+                          return;
+                        }
+                        const clamped = Math.min(10000, Math.max(500, num));
+                        setDelayMs(clamped);
+                      }}
                       className="w-full px-3 py-2 text-xs bg-gray-50 dark:bg-gray-950/40 border border-gray-200 dark:border-gray-800/80 rounded-xl text-gray-900 dark:text-white"
                     />
                   </div>

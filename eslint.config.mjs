@@ -1,10 +1,4 @@
-import { FlatCompat } from "@eslint/eslintrc";
-import js from "@eslint/js";
-
-const compat = new FlatCompat({
-  baseDirectory: import.meta.dirname,
-  recommendedConfig: js.configs.recommended,
-});
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 
 const eslintConfig = [
   // Ignore build output and cache directories
@@ -15,7 +9,7 @@ const eslintConfig = [
       "node_modules/**"
     ]
   },
-  ...compat.extends("next/core-web-vitals"),
+  ...nextCoreWebVitals,
   {
     rules: {
       // Add any custom rule overrides here

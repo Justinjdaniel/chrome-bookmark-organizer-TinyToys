@@ -6,12 +6,12 @@ An elegant, modern, and highly secure **Bring Your Own Key (BYOK)** single-page 
 
 ## 🚀 Key Features
 
-* **Secure Bring Your Own Key (BYOK) Architecture:** Your Gemini API Key is entered through a secure client interface and persisted strictly in browser `sessionStorage`. Your credentials never leave your browser or get sent to any server.
+* **Secure Bring Your Own Key (BYOK) Architecture:** Your Gemini API Key is entered through a secure client interface and persisted strictly in browser `sessionStorage`. The app sends requests directly from your browser to Google's Gemini API; it does not proxy or persist the key on its own server.
 * **Modern Desktop Netscape Parser:** Reads Chrome-compliant `bookmarks.html` structures directly on the client, preserving original metadata such as `ADD_DATE`, `LAST_MODIFIED`, and base64 favicon `ICON` attributes.
 * **Full AI Reorganization:** Choose to flatten and let Gemini group all your bookmarks into a clean, newly-structured folder set from scratch.
 * **Preserve & Sub-Categorize:** Retain your existing top-level folders, but let Gemini organize and group bookmarks cleanly *inside* those existing structures.
 * **Dynamic Categories Customization:** Add, edit, or delete target categories directly from the web interface prior to starting the sorting job.
-* **Sequential Batch Processing:** Chunks URLs into batches of 25–30, processing them sequentially with configurable delays (default: 2.5 seconds) to strictly honor free-tier RPM (Requests Per Minute) quotas.
+* **Sequential Batch Processing:** Chunks URLs into batches (configurable 5–50, default: 25), processing them sequentially with configurable delays (500–10000 ms, default: 2500 ms). Gemini RPM limits are project and model-specific; adjust delay to fit your quota.
 * **Interactive Terminal Logs & Retry:** Watch real-time execution progress, complete with visual progress bars, estimated times remaining, and an inline manual "Retry Batch" mechanism for failed requests.
 * **One-Click Netscape Export:** Rebuilds your organized structure into a fully standard Netscape format `bookmarks_sorted.html` file, ready to be imported back into Chrome or Firefox.
 
@@ -21,7 +21,7 @@ An elegant, modern, and highly secure **Bring Your Own Key (BYOK)** single-page 
 
 Your privacy and security are our highest priority:
 
-1. **Direct Browser Calling:** The application initializes `@google/generative-ai` directly in your browser. All requests are sent over HTTPS straight to `https://generativelanguage.googleapis.com`.
+1. **Direct Browser Calling:** The application initializes `@google/generative-ai` directly in your browser. Gemini requests and the key are sent directly from the browser to Google's Gemini API at `https://generativelanguage.googleapis.com`.
 2. **`sessionStorage` Persistence:** Your API Key is stored inside the browser's `sessionStorage`. Closing your tab or browser window immediately and completely destroys the key from memory.
 3. **Static Build:** Next.js compiles into pure client-side HTML, CSS, and JS assets. No server-side storage, analytics, or background databases exist.
 
@@ -60,8 +60,8 @@ To run this application locally, you will need **Node.js** (v22+) and **pnpm** (
 1. **Clone the repository:**
 
    ```bash
-   git clone <repository-url>
-   cd chrome-bookmark-organizer
+   git clone https://github.com/Justinjdaniel/chrome-bookmark-organizer-TinyToys.git
+   cd chrome-bookmark-organizer-TinyToys
    ```
 
 2. **Install dependencies:**
