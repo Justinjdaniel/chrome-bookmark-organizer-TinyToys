@@ -20,6 +20,7 @@ An elegant, modern, and highly secure **Bring Your Own Key (BYOK)** single-page 
 ## 🔒 Security Guarantees (BYOK)
 
 Your privacy and security are our highest priority:
+
 1. **Direct Browser Calling:** The application initializes `@google/generative-ai` directly in your browser. All requests are sent over HTTPS straight to `https://generativelanguage.googleapis.com`.
 2. **`sessionStorage` Persistence:** Your API Key is stored inside the browser's `sessionStorage`. Closing your tab or browser window immediately and completely destroys the key from memory.
 3. **Static Build:** Next.js compiles into pure client-side HTML, CSS, and JS assets. No server-side storage, analytics, or background databases exist.
@@ -57,17 +58,20 @@ Your privacy and security are our highest priority:
 To run this application locally, you will need **Node.js** (v22+) and **pnpm** (v10+).
 
 1. **Clone the repository:**
+
    ```bash
    git clone <repository-url>
    cd chrome-bookmark-organizer
    ```
 
 2. **Install dependencies:**
+
    ```bash
    pnpm install
    ```
 
 3. **Start the development server:**
+
    ```bash
    pnpm run dev
    ```
@@ -80,7 +84,9 @@ To run this application locally, you will need **Node.js** (v22+) and **pnpm** (
 ## 🌐 Deployment Instructions
 
 ### Deploying to Render (Static Web Service)
+
 Since this is a static client-side application, you can deploy it as a Render **Static Site**:
+
 1. Connect your GitHub repository to [Render](https://dashboard.render.com).
 2. Select **Static Site** as the service type.
 3. Use the following configuration (Render reads the included `render.yaml` automatically):
@@ -89,6 +95,7 @@ Since this is a static client-side application, you can deploy it as a Render **
 4. Deploy! Your app will be live on a global CDN.
 
 ### Deploying to GitHub Pages
+
 1. Install GitHub Pages utility: `pnpm add -D gh-pages`
 2. Update `next.config.mjs` if you are hosting under a subpath (e.g., `basePath: '/repo-name'`).
 3. Add a deploy script to `package.json`: `"deploy": "gh-pages -d out"`.
