@@ -31,12 +31,17 @@ export type BatchCallback = (
 /**
  * Validates a Gemini API key by listing or attempting a simple token check/generation.
  */
-export async function testGeminiApiKey(apiKey: string, modelName: string = 'gemini-1.5-flash'): Promise<boolean> {
+export async function testGeminiApiKey(
+  apiKey: string,
+  modelName: string = 'gemini-1.5-flash'
+): Promise<boolean> {
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: modelName });
     const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: 'Hello, respond with exactly OK' }] }],
+      contents: [
+        { role: 'user', parts: [{ text: 'Hello, respond with exactly OK' }] },
+      ],
     });
     const text = result.response.text();
     return text.length > 0;
@@ -61,45 +66,47 @@ async function processBatchWithRetry(
 ): Promise<CategorizedItem[]> {
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    
+
     // We enforce structured output format using responseSchema
     const schema: Schema = {
-      description: "List of categorized links matching the provided categories exactly",
+      description:
+        'List of categorized links matching the provided categories exactly',
       type: SchemaType.ARRAY,
       items: {
         type: SchemaType.OBJECT,
         properties: {
           url: {
             type: SchemaType.STRING,
-            description: "The original URL that was passed in",
+            description: 'The original URL that was passed in',
           },
           category: {
             type: SchemaType.STRING,
-            description: "The matched category from the provided list. Must be one of the listed categories.",
+            description:
+              'The matched category from the provided list. Must be one of the listed categories.',
           },
         },
-        required: ["url", "category"],
+        required: ['url', 'category'],
       },
     };
 
     const model = genAI.getGenerativeModel({
       model: modelName,
       generationConfig: {
-        responseMimeType: "application/json",
+        responseMimeType: 'application/json',
         responseSchema: schema,
         temperature: 0.1,
       },
       systemInstruction: `You are an advanced bookmark categorizer. Your task is to organize bookmarks into the allowed set of categories.
 You MUST output a valid JSON array of objects. Each object MUST have keys: 'url' and 'category'.
 The 'category' value MUST be chosen strictly from this allowed list of categories:
-${categories.map(c => `- ${c}`).join('\n')}
+${categories.map((c) => `- ${c}`).join('\n')}
 
 If a bookmark doesn't fit perfectly, choose the single best fit.
-Custom organizational instructions: ${customInstructions || "None provided"}`
+Custom organizational instructions: ${customInstructions || 'None provided'}`,
     });
 
     const prompt = `Categorize the following bookmarks:\n${JSON.stringify(items, null, 2)}`;
-    
+
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
     const parsed = JSON.parse(responseText);
@@ -110,10 +117,10 @@ Custom organizational instructions: ${customInstructions || "None provided"}`
     }
 
     // Create a set of submitted URLs for validation
-    const submittedUrls = new Set(items.map(item => item.url));
+    const submittedUrls = new Set(items.map((item) => item.url));
 
     // Validate that categories returned are actually in the requested list (case-insensitive correction can be done)
-    const normalizedCategories = categories.map(c => c.toLowerCase().trim());
+    const normalizedCategories = categories.map((c) => c.toLowerCase().trim());
     const validated: CategorizedItem[] = [];
 
     for (const item of parsed) {
@@ -132,7 +139,9 @@ Custom organizational instructions: ${customInstructions || "None provided"}`
         continue;
       }
 
-      const matchIndex = normalizedCategories.indexOf(item.category.toLowerCase().trim());
+      const matchIndex = normalizedCategories.indexOf(
+        item.category.toLowerCase().trim()
+      );
       if (matchIndex !== -1) {
         validated.push({
           url: item.url,
@@ -154,7 +163,10 @@ Custom organizational instructions: ${customInstructions || "None provided"}`
 
     if (attempt < maxAttempts) {
       const delayMs = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s
-      console.warn(`Attempt ${attempt} failed. Retrying in ${delayMs}ms... Error:`, error);
+      console.warn(
+        `Attempt ${attempt} failed. Retrying in ${delayMs}ms... Error:`,
+        error
+      );
 
       // Abortable wait
       await new Promise((resolve, reject) => {
@@ -171,7 +183,16 @@ Custom organizational instructions: ${customInstructions || "None provided"}`
         throw new Error('Processing aborted by user');
       }
 
-      return processBatchWithRetry(apiKey, modelName, items, categories, customInstructions, attempt + 1, maxAttempts, signal);
+      return processBatchWithRetry(
+        apiKey,
+        modelName,
+        items,
+        categories,
+        customInstructions,
+        attempt + 1,
+        maxAttempts,
+        signal
+      );
     }
     throw error;
   }
@@ -196,7 +217,7 @@ export async function processAllBookmarks(
   const bookmarksItems = bookmarks as BookmarkItem[];
   const resultMapping = new Map<string, string>(); // url -> category
   const total = bookmarksItems.length;
-  
+
   // Chunk bookmarks into batches
   const batches: BatchItem[][] = [];
   for (let i = 0; i < total; i += batchSize) {
@@ -229,10 +250,12 @@ export async function processAllBookmarks(
 
     const currentBatchItems = batches[batchIdx];
     const statusText = `Processing batch ${batchIdx + 1} of ${totalBatches}...`;
-    
+
     // Estimate ETA based on average delay and remaining batches
     const remainingBatches = totalBatches - batchIdx;
-    const etaSeconds = Math.ceil((remainingBatches * delayBetweenBatchesMs) / 1000);
+    const etaSeconds = Math.ceil(
+      (remainingBatches * delayBetweenBatchesMs) / 1000
+    );
 
     onProgress({
       total,
@@ -284,7 +307,9 @@ export async function processAllBookmarks(
         currentBatch: batchIdx + 1,
         totalBatches,
         statusText: delayStatusText,
-        etaSeconds: Math.ceil((remainingBatches - 1) * delayBetweenBatchesMs / 1000),
+        etaSeconds: Math.ceil(
+          ((remainingBatches - 1) * delayBetweenBatchesMs) / 1000
+        ),
       });
 
       // Abortable wait between batches
@@ -339,7 +364,15 @@ export async function retrySingleBatch(
   categories: string[],
   customInstructions: string
 ): Promise<CategorizedItem[]> {
-  return processBatchWithRetry(apiKey, modelName, batchItems, categories, customInstructions, 1, 3);
+  return processBatchWithRetry(
+    apiKey,
+    modelName,
+    batchItems,
+    categories,
+    customInstructions,
+    1,
+    3
+  );
 }
 
 // Temporary compatibility type helper for the module local types

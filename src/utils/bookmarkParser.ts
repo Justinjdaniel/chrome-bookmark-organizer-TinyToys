@@ -24,7 +24,7 @@ export type BookmarkNode = BookmarkItem | FolderItem;
 export function parseBookmarksHtml(htmlContent: string): FolderItem {
   const parser = new DOMParser();
   const doc = parser.parseFromString(htmlContent, 'text/html');
-  
+
   // Root node to accumulate all items
   const root: FolderItem = {
     type: 'folder',
@@ -50,7 +50,7 @@ export function parseBookmarksHtml(htmlContent: string): FolderItem {
 function parseDl(dlElement: Element, childrenList: BookmarkNode[]) {
   // Children are generally DT elements within DL
   const children = Array.from(dlElement.children);
-  
+
   for (const child of children) {
     if (child.tagName.toLowerCase() === 'dt') {
       // Check if it's a folder or a bookmark
@@ -114,14 +114,22 @@ export function exportToNetscapeHtml(root: FolderItem): string {
   return html;
 }
 
-function renderFolderContents(folder: FolderItem, depth: number, isRoot: boolean = false): string {
+function renderFolderContents(
+  folder: FolderItem,
+  depth: number,
+  isRoot: boolean = false
+): string {
   const indent = '    '.repeat(depth);
   const dlIndent = '    '.repeat(depth - 1);
   let html = '';
 
   if (!isRoot) {
-    const addDateAttr = folder.addDate ? ` ADD_DATE="${escapeHtml(folder.addDate)}"` : '';
-    const lastModAttr = folder.lastModified ? ` LAST_MODIFIED="${escapeHtml(folder.lastModified)}"` : '';
+    const addDateAttr = folder.addDate
+      ? ` ADD_DATE="${escapeHtml(folder.addDate)}"`
+      : '';
+    const lastModAttr = folder.lastModified
+      ? ` LAST_MODIFIED="${escapeHtml(folder.lastModified)}"`
+      : '';
     html += `${dlIndent}<DT><H3${addDateAttr}${lastModAttr}>${escapeHtml(folder.title)}</H3>\n`;
   }
 
@@ -131,8 +139,12 @@ function renderFolderContents(folder: FolderItem, depth: number, isRoot: boolean
     if (child.type === 'folder') {
       html += renderFolderContents(child, depth + 1, false);
     } else {
-      const addDateAttr = child.addDate ? ` ADD_DATE="${escapeHtml(child.addDate)}"` : '';
-      const lastModAttr = child.lastModified ? ` LAST_MODIFIED="${escapeHtml(child.lastModified)}"` : '';
+      const addDateAttr = child.addDate
+        ? ` ADD_DATE="${escapeHtml(child.addDate)}"`
+        : '';
+      const lastModAttr = child.lastModified
+        ? ` LAST_MODIFIED="${escapeHtml(child.lastModified)}"`
+        : '';
       const iconAttr = child.icon ? ` ICON="${escapeHtml(child.icon)}"` : '';
       html += `${indent}<DT><A HREF="${escapeHtml(child.url)}"${addDateAttr}${lastModAttr}${iconAttr}>${escapeHtml(child.title)}</A>\n`;
     }
@@ -158,7 +170,7 @@ export function flattenBookmarks(node: BookmarkNode): BookmarkItem[] {
   if (node.type === 'bookmark') {
     return [node];
   }
-  
+
   const flatList: BookmarkItem[] = [];
   for (const child of node.children) {
     flatList.push(...flattenBookmarks(child));

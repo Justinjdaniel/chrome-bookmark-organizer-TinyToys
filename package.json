@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "npx serve out",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "prepare": "husky",
+    "format": "prettier --check .",
+    "format:write": "prettier --write ."
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -27,7 +30,9 @@
     "autoprefixer": "^10.4.20",
     "eslint": "^9.19.0",
     "eslint-config-next": "^16.2.12",
+    "husky": "^9.1.7",
     "postcss": "^8.5.1",
+    "prettier": "^3.9.6",
     "tailwindcss": "^4.0.3",
     "typescript": "^5.7.3"
   }

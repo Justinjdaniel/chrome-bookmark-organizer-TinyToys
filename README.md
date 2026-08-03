@@ -6,14 +6,14 @@ An elegant, modern, and highly secure **Bring Your Own Key (BYOK)** single-page 
 
 ## 🚀 Key Features
 
-* **Secure Bring Your Own Key (BYOK) Architecture:** Your Gemini API Key is entered through a secure client interface and persisted strictly in browser `sessionStorage`. The app sends requests directly from your browser to Google's Gemini API; it does not proxy or persist the key on its own server.
-* **Modern Desktop Netscape Parser:** Reads Chrome-compliant `bookmarks.html` structures directly on the client, preserving original metadata such as `ADD_DATE`, `LAST_MODIFIED`, and base64 favicon `ICON` attributes.
-* **Full AI Reorganization:** Choose to flatten and let Gemini group all your bookmarks into a clean, newly-structured folder set from scratch.
-* **Preserve & Sub-Categorize:** Retain your existing top-level folders, but let Gemini organize and group bookmarks cleanly *inside* those existing structures.
-* **Dynamic Categories Customization:** Add, edit, or delete target categories directly from the web interface prior to starting the sorting job.
-* **Sequential Batch Processing:** Chunks URLs into batches (configurable 5–50, default: 25), processing them sequentially with configurable delays (500–10000 ms, default: 2500 ms). Gemini RPM limits are project and model-specific; adjust delay to fit your quota.
-* **Interactive Terminal Logs & Retry:** Watch real-time execution progress, complete with visual progress bars, estimated times remaining, and an inline manual "Retry Batch" mechanism for failed requests.
-* **One-Click Netscape Export:** Rebuilds your organized structure into a fully standard Netscape format `bookmarks_sorted.html` file, ready to be imported back into Chrome or Firefox.
+- **Secure Bring Your Own Key (BYOK) Architecture:** Your Gemini API Key is entered through a secure client interface and persisted strictly in browser `sessionStorage`. The app sends requests directly from your browser to Google's Gemini API; it does not proxy or persist the key on its own server.
+- **Modern Desktop Netscape Parser:** Reads Chrome-compliant `bookmarks.html` structures directly on the client, preserving original metadata such as `ADD_DATE`, `LAST_MODIFIED`, and base64 favicon `ICON` attributes.
+- **Full AI Reorganization:** Choose to flatten and let Gemini group all your bookmarks into a clean, newly-structured folder set from scratch.
+- **Preserve & Sub-Categorize:** Retain your existing top-level folders, but let Gemini organize and group bookmarks cleanly _inside_ those existing structures.
+- **Dynamic Categories Customization:** Add, edit, or delete target categories directly from the web interface prior to starting the sorting job.
+- **Sequential Batch Processing:** Chunks URLs into batches (configurable 5–50, default: 25), processing them sequentially with configurable delays (500–10000 ms, default: 2500 ms). Gemini RPM limits are project and model-specific; adjust delay to fit your quota.
+- **Interactive Terminal Logs & Retry:** Watch real-time execution progress, complete with visual progress bars, estimated times remaining, and an inline manual "Retry Batch" mechanism for failed requests.
+- **One-Click Netscape Export:** Rebuilds your organized structure into a fully standard Netscape format `bookmarks_sorted.html` file, ready to be imported back into Chrome or Firefox.
 
 ---
 
@@ -90,8 +90,8 @@ Since this is a static client-side application, you can deploy it as a Render **
 1. Connect your GitHub repository to [Render](https://dashboard.render.com).
 2. Select **Static Site** as the service type.
 3. Use the following configuration (Render reads the included `render.yaml` automatically):
-   * **Build Command:** `pnpm run build`
-   * **Publish Directory:** `out`
+   - **Build Command:** `pnpm run build`
+   - **Publish Directory:** `out`
 4. Deploy! Your app will be live on a global CDN.
 
 ### Deploying to GitHub Pages
