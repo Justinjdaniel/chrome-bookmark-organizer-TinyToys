@@ -43,7 +43,6 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:
-          token: ${{ secrets.PAGES_TOKEN }}
           enablement: true
 
       - name: Install dependencies
