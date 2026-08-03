@@ -111,13 +111,14 @@ export default function Home() {
     if (typeof window !== 'undefined') {
       const savedKey = sessionStorage.getItem('gemini_api_key');
       const isLight = document.documentElement.classList.contains('light');
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         if (savedKey) {
           setApiKey(savedKey);
           setIsKeyValid(true);
         }
         setTheme(isLight ? 'light' : 'dark');
       }, 0);
+      return () => clearTimeout(timer);
     }
   }, []);
 

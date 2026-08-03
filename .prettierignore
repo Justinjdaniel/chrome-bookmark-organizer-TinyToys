@@ -5,3 +5,4 @@ pnpm-lock.yaml
 render.yaml
 .git/
 .husky/
+next-env.d.ts
