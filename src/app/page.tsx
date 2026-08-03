@@ -28,7 +28,7 @@ import {
   flattenBookmarks,
   BookmarkItem,
   FolderItem,
-  BookmarkNode
+  BookmarkNode,
 } from '@/utils/bookmarkParser';
 import {
   testGeminiApiKey,
@@ -36,7 +36,7 @@ import {
   retrySingleBatch,
   ProcessingProgress,
   BatchItem,
-  CategorizedItem
+  CategorizedItem,
 } from '@/utils/geminiProcessor';
 
 const DEFAULT_CATEGORIES = [
@@ -48,14 +48,14 @@ const DEFAULT_CATEGORIES = [
   'Productivity Tools',
   'Articles & Reading',
   'Media & Entertainment',
-  'Design & UI/UX'
+  'Design & UI/UX',
 ];
 
 const PREPOPULATED_MODELS = [
   'gemini-1.5-flash',
   'gemini-2.5-flash',
   'gemini-1.5-pro',
-  'gemini-2.5-pro'
+  'gemini-2.5-pro',
 ];
 
 export default function Home() {
@@ -81,37 +81,43 @@ export default function Home() {
   const [customInstructions, setCustomInstructions] = useState('');
   const [batchSize, setBatchSize] = useState(25);
   const [delayMs, setDelayMs] = useState(2500);
-  const [folderMode, setFolderMode] = useState<'full_ai' | 'preserve_sub' | 'flat_list'>('full_ai');
+  const [folderMode, setFolderMode] = useState<
+    'full_ai' | 'preserve_sub' | 'flat_list'
+  >('full_ai');
 
   // Execution Process states
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState<ProcessingProgress | null>(null);
-  const [batchLogs, setBatchLogs] = useState<{
-    index: number;
-    success: boolean;
-    itemsCount: number;
-    error?: string;
-    rawItems: BatchItem[];
-  }[]>([]);
+  const [batchLogs, setBatchLogs] = useState<
+    {
+      index: number;
+      success: boolean;
+      itemsCount: number;
+      error?: string;
+      rawItems: BatchItem[];
+    }[]
+  >([]);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Result state
   const [organizedRoot, setOrganizedRoot] = useState<FolderItem | null>(null);
   const [outputHtml, setOutputHtml] = useState<string>('');
-  const [urlCategoryMapping, setUrlCategoryMapping] = useState<Map<string, string>>(new Map());
+  const [urlCategoryMapping, setUrlCategoryMapping] = useState<
+    Map<string, string>
+  >(new Map());
 
   // Key storage sync
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedKey = sessionStorage.getItem('gemini_api_key');
-      if (savedKey) {
-        setApiKey(savedKey);
-        setIsKeyValid(true);
-      }
-
-      // Read preference if dark/light is set
       const isLight = document.documentElement.classList.contains('light');
-      setTheme(isLight ? 'light' : 'dark');
+      setTimeout(() => {
+        if (savedKey) {
+          setApiKey(savedKey);
+          setIsKeyValid(true);
+        }
+        setTheme(isLight ? 'light' : 'dark');
+      }, 0);
     }
   }, []);
 
@@ -152,7 +158,8 @@ export default function Home() {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
     if (file) {
-      const isHtml = file.type === 'text/html' || file.name.toLowerCase().endsWith('.html');
+      const isHtml =
+        file.type === 'text/html' || file.name.toLowerCase().endsWith('.html');
       if (!isHtml) {
         alert('Please drop a valid HTML file (.html)');
         return;
@@ -179,13 +186,17 @@ export default function Home() {
         setParsedRoot(root);
         const flatList = flattenBookmarks(root);
         if (!flatList || flatList.length === 0) {
-          alert('No bookmarks found in the file. Please verify it is a valid bookmarks export with actual bookmark entries.');
+          alert(
+            'No bookmarks found in the file. Please verify it is a valid bookmarks export with actual bookmark entries.'
+          );
           setFlatBookmarks([]);
           return;
         }
         setFlatBookmarks(flatList);
       } catch (err) {
-        alert('Failed to parse bookmarks.html. Please verify it is a valid Google Chrome Netscape Bookmark export.');
+        alert(
+          'Failed to parse bookmarks.html. Please verify it is a valid Google Chrome Netscape Bookmark export.'
+        );
       }
     };
     reader.onerror = () => {
@@ -203,7 +214,7 @@ export default function Home() {
   };
 
   const removeCategory = (cat: string) => {
-    setCategories(categories.filter(c => c !== cat));
+    setCategories(categories.filter((c) => c !== cat));
   };
 
   const handleCancelProcessing = () => {
@@ -241,11 +252,13 @@ export default function Home() {
     const total = flatBookmarks.length;
     const initialLogs: typeof batchLogs = [];
     for (let i = 0, batchIdx = 0; i < total; i += validBatchSize, batchIdx++) {
-      const chunk = flatBookmarks.slice(i, i + validBatchSize).map((b, idx) => ({
-        id: i + idx,
-        url: b.url,
-        title: b.title,
-      }));
+      const chunk = flatBookmarks
+        .slice(i, i + validBatchSize)
+        .map((b, idx) => ({
+          id: i + idx,
+          url: b.url,
+          title: b.title,
+        }));
       initialLogs.push({
         index: batchIdx,
         success: false,
@@ -291,7 +304,11 @@ export default function Home() {
       setUrlCategoryMapping(fullMap);
 
       // Re-assemble structure based on selected structuring mode
-      const finalRoot = rebuildStructuredBookmarks(flatBookmarks, fullMap, folderMode);
+      const finalRoot = rebuildStructuredBookmarks(
+        flatBookmarks,
+        fullMap,
+        folderMode
+      );
       setOrganizedRoot(finalRoot);
       const output = exportToNetscapeHtml(finalRoot);
       setOutputHtml(output);
@@ -324,11 +341,11 @@ export default function Home() {
 
     if (mode === 'flat_list') {
       // Return a simple list of bookmarks at root
-      root.children = originalBookmarks.map(b => {
+      root.children = originalBookmarks.map((b) => {
         const cat = mapping.get(b.url) || 'Uncategorized';
         return {
           ...b,
-          title: `${b.title} [${cat}]`
+          title: `${b.title} [${cat}]`,
         };
       });
       return root;
@@ -337,7 +354,7 @@ export default function Home() {
     if (mode === 'full_ai') {
       // Create top-level folders for each user specified category
       const categoryFoldersMap = new Map<string, FolderItem>();
-      
+
       // Seed with standard categories
       for (const cat of categories) {
         categoryFoldersMap.set(cat, {
@@ -382,7 +399,11 @@ export default function Home() {
     if (mode === 'preserve_sub') {
       // Maintain top-level folder names and group within them
       if (!parsedRoot) {
-        return rebuildStructuredBookmarks(originalBookmarks, mapping, 'full_ai');
+        return rebuildStructuredBookmarks(
+          originalBookmarks,
+          mapping,
+          'full_ai'
+        );
       }
 
       // Deep copy parsedRoot structure and categorize within folders
@@ -394,11 +415,18 @@ export default function Home() {
     return root;
   };
 
-  const processNodePreserve = (node: BookmarkNode, mapping: Map<string, string>) => {
+  const processNodePreserve = (
+    node: BookmarkNode,
+    mapping: Map<string, string>
+  ) => {
     if (node.type === 'folder') {
       // Separate bookmarks and subfolders
-      const subfolders = node.children.filter(c => c.type === 'folder') as FolderItem[];
-      const bookmarks = node.children.filter(c => c.type === 'bookmark') as BookmarkItem[];
+      const subfolders = node.children.filter(
+        (c) => c.type === 'folder'
+      ) as FolderItem[];
+      const bookmarks = node.children.filter(
+        (c) => c.type === 'bookmark'
+      ) as BookmarkItem[];
 
       // Group bookmarks in this folder by their category
       const groupedMap = new Map<string, BookmarkItem[]>();
@@ -481,15 +509,23 @@ export default function Home() {
       setUrlCategoryMapping(updatedMapping);
 
       // Rebuild the export/download structure
-      const finalRoot = rebuildStructuredBookmarks(flatBookmarks, updatedMapping, folderMode);
+      const finalRoot = rebuildStructuredBookmarks(
+        flatBookmarks,
+        updatedMapping,
+        folderMode
+      );
       setOrganizedRoot(finalRoot);
       const output = exportToNetscapeHtml(finalRoot);
       setOutputHtml(output);
 
-      alert(`Batch ${batchIdx + 1} sorted successfully! Export has been updated.`);
+      alert(
+        `Batch ${batchIdx + 1} sorted successfully! Export has been updated.`
+      );
     } catch (err) {
       console.error(err);
-      alert(`Manual retry failed: ${err instanceof Error ? err.message : String(err)}`);
+      alert(
+        `Manual retry failed: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   };
 
@@ -532,7 +568,11 @@ export default function Home() {
               title="Toggle theme"
               aria-label="Toggle theme"
             >
-              {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              {theme === 'dark' ? (
+                <Sun className="w-5 h-5" />
+              ) : (
+                <Moon className="w-5 h-5" />
+              )}
             </button>
             <a
               href="https://github.com/Justinjdaniel/chrome-bookmark-organizer-TinyToys"
@@ -549,7 +589,6 @@ export default function Home() {
 
       {/* Main Container */}
       <main className="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        
         {/* Intro Info Banner */}
         <div className="bg-gradient-to-br from-blue-500/10 via-indigo-500/5 to-transparent border border-blue-500/20 rounded-2xl p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="space-y-2 max-w-3xl">
@@ -560,7 +599,11 @@ export default function Home() {
               Tidy Up Your Browser Safely
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
-              Upload your raw Chrome <b>bookmarks.html</b>, input your personal Gemini API Key, and organize them dynamically. Your key is stored locally inside <code>sessionStorage</code> and requests go directly to Google&apos;s Generative AI API endpoints from your browser.
+              Upload your raw Chrome <b>bookmarks.html</b>, input your personal
+              Gemini API Key, and organize them dynamically. Your key is stored
+              locally inside <code>sessionStorage</code> and requests go
+              directly to Google&apos;s Generative AI API endpoints from your
+              browser.
             </p>
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 bg-white/80 dark:bg-gray-950/40 p-3 rounded-lg border border-gray-200 dark:border-gray-800/80">
@@ -571,15 +614,15 @@ export default function Home() {
 
         {/* Configurations Dashboard */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
           {/* Left Column: API Key & Bookmarks Upload */}
           <div className="lg:col-span-5 space-y-8">
-            
             {/* Step 1: BYOK Settings */}
             <div className="bg-white dark:bg-[#0c1220] border border-gray-200 dark:border-gray-800/80 rounded-2xl p-6 shadow-sm space-y-5">
               <div className="flex items-center gap-2 text-indigo-500">
                 <Key className="w-5 h-5" />
-                <h3 className="font-bold text-gray-900 dark:text-white">1. Bring Your Own Key (BYOK)</h3>
+                <h3 className="font-bold text-gray-900 dark:text-white">
+                  1. Bring Your Own Key (BYOK)
+                </h3>
               </div>
 
               <div className="space-y-4">
@@ -617,12 +660,14 @@ export default function Home() {
                   </div>
                   {isKeyValid === true && (
                     <p className="text-xs text-green-500 mt-2 flex items-center gap-1 font-medium">
-                      <CheckCircle className="w-3.5 h-3.5" /> API Key successfully verified & ready.
+                      <CheckCircle className="w-3.5 h-3.5" /> API Key
+                      successfully verified & ready.
                     </p>
                   )}
                   {isKeyValid === false && (
                     <p className="text-xs text-red-500 mt-2 flex items-center gap-1 font-medium">
-                      <AlertTriangle className="w-3.5 h-3.5" /> API Key verification failed. Verify your key structure.
+                      <AlertTriangle className="w-3.5 h-3.5" /> API Key
+                      verification failed. Verify your key structure.
                     </p>
                   )}
                 </div>
@@ -641,8 +686,10 @@ export default function Home() {
                       }}
                       className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950/40 border border-gray-200 dark:border-gray-800/80 rounded-xl text-gray-900 dark:text-white"
                     >
-                      {PREPOPULATED_MODELS.map(m => (
-                        <option key={m} value={m}>{m}</option>
+                      {PREPOPULATED_MODELS.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -669,7 +716,9 @@ export default function Home() {
             <div className="bg-white dark:bg-[#0c1220] border border-gray-200 dark:border-gray-800/80 rounded-2xl p-6 shadow-sm space-y-5">
               <div className="flex items-center gap-2 text-blue-500">
                 <FileCode className="w-5 h-5" />
-                <h3 className="font-bold text-gray-900 dark:text-white">2. Upload bookmarks.html</h3>
+                <h3 className="font-bold text-gray-900 dark:text-white">
+                  2. Upload bookmarks.html
+                </h3>
               </div>
 
               <div
@@ -684,19 +733,27 @@ export default function Home() {
                   className="hidden"
                   id="bookmarks-file-upload"
                 />
-                <label htmlFor="bookmarks-file-upload" className="cursor-pointer space-y-3 block">
+                <label
+                  htmlFor="bookmarks-file-upload"
+                  className="cursor-pointer space-y-3 block"
+                >
                   <div className="bg-blue-500/10 text-blue-500 p-3 rounded-2xl inline-block">
                     <Folder className="w-8 h-8" />
                   </div>
                   <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     {fileName ? (
-                      <span className="text-blue-500 font-semibold">{fileName}</span>
+                      <span className="text-blue-500 font-semibold">
+                        {fileName}
+                      </span>
                     ) : (
-                      <span>Drag &amp; drop bookmarks.html or click to browse</span>
+                      <span>
+                        Drag &amp; drop bookmarks.html or click to browse
+                      </span>
                     )}
                   </div>
                   <p className="text-xs text-gray-400">
-                    Supports Netscape HTML bookmark files exported from Chrome/Firefox
+                    Supports Netscape HTML bookmark files exported from
+                    Chrome/Firefox
                   </p>
                 </label>
               </div>
@@ -706,8 +763,12 @@ export default function Home() {
                   <div className="flex items-center gap-2.5 text-blue-500">
                     <FileText className="w-5 h-5" />
                     <div>
-                      <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Parsed File</h4>
-                      <p className="text-sm font-bold text-gray-900 dark:text-white">{flatBookmarks.length} Bookmarks Found</p>
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                        Parsed File
+                      </h4>
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">
+                        {flatBookmarks.length} Bookmarks Found
+                      </p>
                     </div>
                   </div>
                   <button
@@ -725,18 +786,18 @@ export default function Home() {
                 </div>
               )}
             </div>
-
           </div>
 
           {/* Right Column: Custom Categorization & Run Options */}
           <div className="lg:col-span-7 space-y-8">
-            
             {/* Step 3: Categorization & Rules Setting */}
             <div className="bg-white dark:bg-[#0c1220] border border-gray-200 dark:border-gray-800/80 rounded-2xl p-6 shadow-sm space-y-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-purple-500">
                   <FolderTree className="w-5 h-5" />
-                  <h3 className="font-bold text-gray-900 dark:text-white">3. Configure AI Categories</h3>
+                  <h3 className="font-bold text-gray-900 dark:text-white">
+                    3. Configure AI Categories
+                  </h3>
                 </div>
                 <button
                   onClick={() => setCategories(DEFAULT_CATEGORIES)}
@@ -768,7 +829,7 @@ export default function Home() {
                       </span>
                     ))}
                   </div>
-                  
+
                   <div className="flex gap-2 mt-3">
                     <input
                       type="text"
@@ -801,8 +862,12 @@ export default function Home() {
                           : 'border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900/50'
                       }`}
                     >
-                      <h4 className="text-xs font-bold">Full AI Reorganization</h4>
-                      <p className="text-[11px] text-gray-400">Flatten everything, fully categorize from scratch.</p>
+                      <h4 className="text-xs font-bold">
+                        Full AI Reorganization
+                      </h4>
+                      <p className="text-[11px] text-gray-400">
+                        Flatten everything, fully categorize from scratch.
+                      </p>
                     </button>
                     <button
                       onClick={() => setFolderMode('preserve_sub')}
@@ -812,8 +877,13 @@ export default function Home() {
                           : 'border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900/50'
                       }`}
                     >
-                      <h4 className="text-xs font-bold">Preserve top-level folders</h4>
-                      <p className="text-[11px] text-gray-400">Sort and create categories inside existing folder structures.</p>
+                      <h4 className="text-xs font-bold">
+                        Preserve top-level folders
+                      </h4>
+                      <p className="text-[11px] text-gray-400">
+                        Sort and create categories inside existing folder
+                        structures.
+                      </p>
                     </button>
                     <button
                       onClick={() => setFolderMode('flat_list')}
@@ -824,7 +894,9 @@ export default function Home() {
                       }`}
                     >
                       <h4 className="text-xs font-bold">Export Flat List</h4>
-                      <p className="text-[11px] text-gray-400">Append category metadata tag at the end of each link.</p>
+                      <p className="text-[11px] text-gray-400">
+                        Append category metadata tag at the end of each link.
+                      </p>
                     </button>
                   </div>
                 </div>
@@ -925,40 +997,48 @@ export default function Home() {
                     onClick={downloadSortedHtmlFile}
                     className="px-6 py-3.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition shadow-lg shadow-green-500/10"
                   >
-                    <Download className="w-4 h-4" /> Download bookmarks_sorted.html
+                    <Download className="w-4 h-4" /> Download
+                    bookmarks_sorted.html
                   </button>
                 )}
               </div>
             </div>
-
           </div>
-
         </div>
 
         {/* Live Processing progress console & logs */}
         {(progress || batchLogs.length > 0) && (
           <div className="bg-white dark:bg-[#0c1220] border border-gray-200 dark:border-gray-800/80 rounded-2xl p-6 shadow-sm space-y-6">
             <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <RefreshCw className={`w-5 h-5 text-indigo-500 ${isProcessing ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`w-5 h-5 text-indigo-500 ${isProcessing ? 'animate-spin' : ''}`}
+              />
               AI Sequential Processing Terminal
             </h3>
 
             {progress && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-xs font-semibold text-gray-500 dark:text-gray-400">
-                  <span>Batch {progress.currentBatch} of {progress.totalBatches}</span>
+                  <span>
+                    Batch {progress.currentBatch} of {progress.totalBatches}
+                  </span>
                   <span>{progress.statusText}</span>
-                  {progress.etaSeconds > 0 && <span>Est. Remaining Time: ~{progress.etaSeconds}s</span>}
+                  {progress.etaSeconds > 0 && (
+                    <span>Est. Remaining Time: ~{progress.etaSeconds}s</span>
+                  )}
                 </div>
                 {/* Progress bar */}
                 <div className="w-full bg-gray-100 dark:bg-gray-800/50 rounded-full h-3 overflow-hidden">
                   <div
                     className="bg-indigo-600 h-full transition-all duration-300"
-                    style={{ width: `${Math.round((progress.processed / progress.total) * 100)}%` }}
+                    style={{
+                      width: `${Math.round((progress.processed / progress.total) * 100)}%`,
+                    }}
                   ></div>
                 </div>
                 <div className="text-right text-xs text-gray-400">
-                  {progress.processed} of {progress.total} total links processed ({Math.round((progress.processed / progress.total) * 100)}%)
+                  {progress.processed} of {progress.total} total links processed
+                  ({Math.round((progress.processed / progress.total) * 100)}%)
                 </div>
               </div>
             )}
@@ -976,12 +1056,20 @@ export default function Home() {
                   >
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className={`w-2.5 h-2.5 rounded-full ${log.success ? 'bg-green-500' : 'bg-amber-500'}`}></span>
-                        <span className="font-bold text-gray-800 dark:text-gray-300">Batch #{log.index + 1} ({log.itemsCount} URLs)</span>
-                        {log.error && <span className="text-red-500 text-[11px] font-semibold">{log.error}</span>}
+                        <span
+                          className={`w-2.5 h-2.5 rounded-full ${log.success ? 'bg-green-500' : 'bg-amber-500'}`}
+                        ></span>
+                        <span className="font-bold text-gray-800 dark:text-gray-300">
+                          Batch #{log.index + 1} ({log.itemsCount} URLs)
+                        </span>
+                        {log.error && (
+                          <span className="text-red-500 text-[11px] font-semibold">
+                            {log.error}
+                          </span>
+                        )}
                       </div>
                       <div className="text-gray-400 text-[11px] max-w-lg truncate">
-                        {log.rawItems.map(item => item.title).join(', ')}
+                        {log.rawItems.map((item) => item.title).join(', ')}
                       </div>
                     </div>
 
@@ -999,15 +1087,19 @@ export default function Home() {
             </div>
           </div>
         )}
-
       </main>
 
       {/* Footer */}
       <footer className="border-t border-gray-200 dark:border-gray-800/80 py-8 bg-gray-50 dark:bg-[#070b13] transition-colors mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-xs text-gray-400 space-y-1">
-          <p>© {new Date().getFullYear()} AI Chrome Bookmark Organizer. All rights reserved.</p>
           <p>
-            This application is governed strictly by the Bring Your Own Key security structure. No personal data, configurations, or credentials ever leave your browser.
+            © {new Date().getFullYear()} AI Chrome Bookmark Organizer. All
+            rights reserved.
+          </p>
+          <p>
+            This application is governed strictly by the Bring Your Own Key
+            security structure. No personal data, configurations, or credentials
+            ever leave your browser.
           </p>
         </div>
       </footer>

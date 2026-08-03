@@ -3,7 +3,8 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'AI Chrome Bookmark Organizer',
-  description: 'Bring Your Own Key (BYOK) chrome bookmarks parsing, AI organization, and re-exporting with Gemini API.',
+  description:
+    'Bring Your Own Key (BYOK) chrome bookmarks parsing, AI organization, and re-exporting with Gemini API.',
 };
 
 export default function RootLayout({
