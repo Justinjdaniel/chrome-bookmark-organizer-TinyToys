@@ -41,7 +41,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v4
         with:
           enablement: true
 
