@@ -1,179 +1,200 @@
-export interface BookmarkItem {
-  type: 'bookmark';
-  title: string;
-  url: string;
-  addDate?: string;
-  lastModified?: string;
-  icon?: string;
-}
+import { BookmarkFolder, BookmarkItem, ParseResult } from "../types/bookmark";
 
-export interface FolderItem {
-  type: 'folder';
-  title: string;
-  addDate?: string;
-  lastModified?: string;
-  children: (BookmarkItem | FolderItem)[];
-}
-
-export type BookmarkNode = BookmarkItem | FolderItem;
-
-/**
- * Parses Chrome Netscape format bookmarks.html on the client side.
- * Relies on browser's DOMParser to inspect elements and structure.
- */
-export function parseBookmarksHtml(htmlContent: string): FolderItem {
+export function parseBookmarkHTML(htmlString: string): ParseResult {
   const parser = new DOMParser();
-  const doc = parser.parseFromString(htmlContent, 'text/html');
+  const doc = parser.parseFromString(htmlString, "text/html");
 
-  // Root node to accumulate all items
-  const root: FolderItem = {
-    type: 'folder',
-    title: 'root',
-    children: [],
-  };
+  const flatBookmarks: BookmarkItem[] = [];
+  let originalFolderCount = 0;
+  let counter = 0;
 
-  // Find first DL element, which contains the top-level bookmarks list
-  const firstDl = doc.querySelector('dl');
-  if (firstDl) {
-    parseDl(firstDl, root.children);
-  } else {
-    // Fallback: search anywhere in the document
-    const body = doc.body;
-    if (body) {
-      parseDl(body, root.children);
+  function extractDomain(url: string): string {
+    try {
+      const parsed = new URL(url);
+      return parsed.hostname.replace(/^www\./, "");
+    } catch {
+      return "other";
     }
   }
 
-  return root;
-}
+  function walkElement(element: Element, currentPath: string[]): (BookmarkFolder | BookmarkItem)[] {
+    const results: (BookmarkFolder | BookmarkItem)[] = [];
+    const children = Array.from(element.children);
 
-function parseDl(dlElement: Element, childrenList: BookmarkNode[]) {
-  // Children are generally DT elements within DL
-  const children = Array.from(dlElement.children);
+    for (let i = 0; i < children.length; i++) {
+      const el = children[i];
+      const tagName = el.tagName.toUpperCase();
 
-  for (const child of children) {
-    if (child.tagName.toLowerCase() === 'dt') {
-      // Check if it's a folder or a bookmark
-      // A folder usually contains an H3 element followed by a DL element
-      const h3 = child.querySelector(':scope > h3');
-      const dl = child.querySelector(':scope > dl');
-      const a = child.querySelector(':scope > a');
+      if (tagName === "DT") {
+        const h3 = el.querySelector(":scope > H3, :scope > h3");
+        const a = el.querySelector(":scope > A, :scope > a");
+        const dl =
+          el.querySelector(":scope > DL, :scope > dl") ||
+          (el.nextElementSibling?.tagName === "DL" ? el.nextElementSibling : null);
 
-      if (h3) {
-        const folder: FolderItem = {
-          type: 'folder',
-          title: h3.textContent || 'Untitled Folder',
-          addDate: h3.getAttribute('add_date') || undefined,
-          lastModified: h3.getAttribute('last_modified') || undefined,
-          children: [],
-        };
-        childrenList.push(folder);
+        if (h3) {
+          originalFolderCount++;
+          const folderTitle = h3.textContent?.trim() || "Untitled Folder";
+          const addDate =
+            h3.getAttribute("ADD_DATE") ||
+            h3.getAttribute("add_date") ||
+            String(Math.floor(Date.now() / 1000));
+          const lastModified =
+            h3.getAttribute("LAST_MODIFIED") || h3.getAttribute("last_modified") || addDate;
+          const isToolbar =
+            h3.getAttribute("PERSONAL_TOOLBAR_FOLDER") === "true" ||
+            folderTitle.toLowerCase().includes("bookmarks bar");
 
-        if (dl) {
-          parseDl(dl, folder.children);
-        } else {
-          // Sometimes the DL is a sibling of the DT or next sibling
-          const nextSibling = child.nextElementSibling;
-          if (nextSibling && nextSibling.tagName.toLowerCase() === 'dl') {
-            parseDl(nextSibling, folder.children);
+          const folderId = `folder_${++counter}`;
+          const newPath = [...currentPath, folderTitle];
+
+          let folderChildren: (BookmarkFolder | BookmarkItem)[] = [];
+          if (dl) {
+            folderChildren = walkElement(dl, newPath);
+          }
+
+          results.push({
+            id: folderId,
+            title: folderTitle,
+            addDate,
+            lastModified,
+            isToolbar,
+            children: folderChildren,
+          });
+        } else if (a) {
+          const href = a.getAttribute("HREF") || a.getAttribute("href") || "";
+          if (href && !href.startsWith("javascript:") && !href.startsWith("data:")) {
+            const title = a.textContent?.trim() || href;
+            const addDate =
+              a.getAttribute("ADD_DATE") ||
+              a.getAttribute("add_date") ||
+              String(Math.floor(Date.now() / 1000));
+            const icon = a.getAttribute("ICON") || a.getAttribute("icon") || undefined;
+            const domain = extractDomain(href);
+            const id = `bm_${++counter}`;
+
+            const item: BookmarkItem = {
+              id,
+              title,
+              url: href,
+              addDate,
+              icon,
+              originalFolder: currentPath.join(" / ") || "Root",
+              category: "Uncategorized",
+              domain,
+            };
+
+            flatBookmarks.push(item);
+            results.push(item);
           }
         }
-      } else if (a) {
-        const bookmark: BookmarkItem = {
-          type: 'bookmark',
-          title: a.textContent || 'Untitled Bookmark',
-          url: a.getAttribute('href') || '',
-          addDate: a.getAttribute('add_date') || undefined,
-          lastModified: a.getAttribute('last_modified') || undefined,
-          icon: a.getAttribute('icon') || undefined,
-        };
-        childrenList.push(bookmark);
+      } else if (tagName === "DL") {
+        results.push(...walkElement(el, currentPath));
+      } else if (tagName === "P") {
+        // Skip or continue
       }
-    } else if (child.tagName.toLowerCase() === 'dl') {
-      // In some weird structures, DL elements can be direct children
-      parseDl(child, childrenList);
     }
-  }
-}
 
-/**
- * Re-assembles a structured FolderItem tree into valid Netscape bookmarks.html.
- * Keeps all timestamps and icons if present.
- */
-export function exportToNetscapeHtml(root: FolderItem): string {
-  let html = `<!DOCTYPE NETSCAPE-Bookmark-file-1>
-<!-- This is an automatically generated file.
-     It will be read and overwritten.
-     DO NOT EDIT! -->
-<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
-<TITLE>Bookmarks</TITLE>
-<H1>Bookmarks</H1>
-`;
-
-  html += renderFolderContents(root, 1, true);
-  return html;
-}
-
-function renderFolderContents(
-  folder: FolderItem,
-  depth: number,
-  isRoot: boolean = false
-): string {
-  const indent = '    '.repeat(depth);
-  const dlIndent = '    '.repeat(depth - 1);
-  let html = '';
-
-  if (!isRoot) {
-    const addDateAttr = folder.addDate
-      ? ` ADD_DATE="${escapeHtml(folder.addDate)}"`
-      : '';
-    const lastModAttr = folder.lastModified
-      ? ` LAST_MODIFIED="${escapeHtml(folder.lastModified)}"`
-      : '';
-    html += `${dlIndent}<DT><H3${addDateAttr}${lastModAttr}>${escapeHtml(folder.title)}</H3>\n`;
+    return results;
   }
 
-  html += `${dlIndent}<DL><p>\n`;
+  const rootDL = doc.querySelector("DL, dl") || doc.body;
+  const parsedChildren = walkElement(rootDL, []);
 
-  for (const child of folder.children) {
-    if (child.type === 'folder') {
-      html += renderFolderContents(child, depth + 1, false);
-    } else {
-      const addDateAttr = child.addDate
-        ? ` ADD_DATE="${escapeHtml(child.addDate)}"`
-        : '';
-      const lastModAttr = child.lastModified
-        ? ` LAST_MODIFIED="${escapeHtml(child.lastModified)}"`
-        : '';
-      const iconAttr = child.icon ? ` ICON="${escapeHtml(child.icon)}"` : '';
-      html += `${indent}<DT><A HREF="${escapeHtml(child.url)}"${addDateAttr}${lastModAttr}${iconAttr}>${escapeHtml(child.title)}</A>\n`;
+  // Check if we extracted any bookmarks; if DOMParser had trouble due to unclosed Netscape tags, fallback to regex
+  if (flatBookmarks.length === 0) {
+    return parseViaRegex(htmlString);
+  }
+
+  const rootFolder: BookmarkFolder = {
+    id: "root",
+    title: "Bookmarks",
+    children: parsedChildren,
+  };
+
+  return {
+    rootFolder,
+    flatBookmarks,
+    originalFolderCount,
+    hasToolbar: parsedChildren.some((c) => "isToolbar" in c && c.isToolbar),
+  };
+}
+
+export function parseViaRegex(content: string): ParseResult {
+  const flatBookmarks: BookmarkItem[] = [];
+  let counter = 0;
+
+  function extractDomain(url: string): string {
+    try {
+      const parsed = new URL(url);
+      return parsed.hostname.replace(/^www\./, "");
+    } catch {
+      return "other";
     }
   }
 
-  html += `${dlIndent}</DL><p>\n`;
-  return html;
-}
+  // Find all <A HREF="...">Title</A> tags
+  const regex = /<A\s+[^>]*HREF=["']([^"']+)["'][^>]*>(.*?)<\/A>/gi;
+  let match: RegExpExecArray | null;
 
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
+  while ((match = regex.exec(content)) !== null) {
+    const url = match[1];
+    let title = match[2].replace(/<[^>]*>/g, "").trim();
+    if (!title) title = url;
 
-/**
- * Extracts a flat list of bookmarks from any FolderItem tree structure.
- */
-export function flattenBookmarks(node: BookmarkNode): BookmarkItem[] {
-  if (node.type === 'bookmark') {
-    return [node];
+    // Check for ADD_DATE & ICON in full tag
+    const fullTag = match[0];
+    const addDateMatch = /ADD_DATE=["'](\d+)["']/i.exec(fullTag);
+    const iconMatch = /ICON=["']([^"']+)["']/i.exec(fullTag);
+
+    const item: BookmarkItem = {
+      id: `bm_rx_${++counter}`,
+      title,
+      url,
+      addDate: addDateMatch ? addDateMatch[1] : String(Math.floor(Date.now() / 1000)),
+      icon: iconMatch ? iconMatch[1] : undefined,
+      category: "Uncategorized",
+      domain: extractDomain(url),
+      originalFolder: "Imported Bookmarks",
+    };
+
+    flatBookmarks.push(item);
   }
 
-  const flatList: BookmarkItem[] = [];
-  for (const child of node.children) {
-    flatList.push(...flattenBookmarks(child));
+  // Also check plain URLs if pasted raw text
+  if (flatBookmarks.length === 0) {
+    const urlRegex = /(https?:\/\/[^\s<>"']+)/gi;
+    let urlMatch: RegExpExecArray | null;
+    const seen = new Set<string>();
+
+    while ((urlMatch = urlRegex.exec(content)) !== null) {
+      const rawUrl = urlMatch[1];
+      if (!seen.has(rawUrl)) {
+        seen.add(rawUrl);
+        const domain = extractDomain(rawUrl);
+        flatBookmarks.push({
+          id: `bm_txt_${++counter}`,
+          title: domain.charAt(0).toUpperCase() + domain.slice(1),
+          url: rawUrl,
+          addDate: String(Math.floor(Date.now() / 1000)),
+          category: "Uncategorized",
+          domain,
+          originalFolder: "Imported URLs",
+        });
+      }
+    }
   }
-  return flatList;
+
+  const rootFolder: BookmarkFolder = {
+    id: "root",
+    title: "Bookmarks",
+    children: flatBookmarks,
+  };
+
+  return {
+    rootFolder,
+    flatBookmarks,
+    originalFolderCount: 1,
+    hasToolbar: false,
+  };
 }

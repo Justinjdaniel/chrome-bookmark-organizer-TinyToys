@@ -1,42 +1,42 @@
-name: CI
+name: CI & Code Quality
 
 on:
   push:
-    branches: ['**']
+    branches: [main, master]
   pull_request:
-    branches: ['**']
-
-permissions:
-  contents: read
+    branches: [main, master]
 
 jobs:
-  verify:
+  validate:
+    name: Lint, Format & Typecheck (pnpm)
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
-        with:
-          persist-credentials: false
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 9
 
-      - name: Set up Node.js
+      - name: Setup Node.js (20.x)
         uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: 'pnpm'
+          node-version: 20.x
+          cache: "pnpm"
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Install Dependencies
+        run: pnpm install --no-frozen-lockfile
 
-      - name: Check format
-        run: pnpm run format
+      - name: Typecheck TypeScript
+        run: pnpm run typecheck
 
-      - name: Run lint
-        run: pnpm run lint
+      - name: Run ESLint
+        run: pnpm run lint:check
 
-      - name: Build project
+      - name: Check Code Formatting (Prettier)
+        run: pnpm run format:check
+
+      - name: Build Static App (Vite)
         run: pnpm run build

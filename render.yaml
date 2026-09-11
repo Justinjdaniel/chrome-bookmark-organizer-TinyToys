@@ -1,7 +1,0 @@
-services:
-  - type: web
-    name: chrome-bookmark-organizer
-    runtime: static
-    buildCommand: pnpm run build
-    staticPublishPath: out
-    autoDeploy: true
