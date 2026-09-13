@@ -930,11 +930,8 @@ export function classifyBookmark(bookmark: BookmarkItem): {
   }
 
   // 3. Fallback to general categorization based on top-level domain or generic heuristics
-  if (
-    domainLower.includes("edu") ||
-    domainLower.includes("school") ||
-    domainLower.includes("university")
-  ) {
+  const tld = domainLower.split(".").pop() || "";
+  if (tld === "edu" || domainLower.includes("school") || domainLower.includes("university")) {
     return {
       category: "Learning & Education",
       subCategory: "Academic",
@@ -942,7 +939,7 @@ export function classifyBookmark(bookmark: BookmarkItem): {
       icon: "GraduationCap",
     };
   }
-  if (domainLower.includes("gov") || domainLower.includes("org")) {
+  if (tld === "gov" || tld === "org") {
     return {
       category: "Reference & Public",
       subCategory: "Organizations",
